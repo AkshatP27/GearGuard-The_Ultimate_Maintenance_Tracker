@@ -60,25 +60,6 @@ export default function Sidebar() {
           </NavLink>
         ))}
       </nav>
-      
-      {/* Quick Stats in Sidebar */}
-      <div className="p-4 mt-8 mx-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Quick Stats</h3>
-        <div className="space-y-2 text-sm">
-          <div className="flex justify-between">
-            <span className="text-gray-600">Active Tasks</span>
-            <span className="font-semibold text-blue-600">12</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Equipment</span>
-            <span className="font-semibold text-green-600">24</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-600">Team Members</span>
-            <span className="font-semibold text-purple-600">8</span>
-          </div>
-        </div>
-      </div>
     </aside>
   )
 }

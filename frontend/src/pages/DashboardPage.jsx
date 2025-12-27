@@ -20,34 +20,23 @@ export default function DashboardPage() {
   const fetchMaintenanceReports = async () => {
     try {
       const { data, error } = await supabase
-        .from('maintenance_tasks')
+        .from('equipment')
         .select(`
           id,
-          title,
-          description,
-          task_type,
+          subject,
+          equipment_name,
+          category,
+          maintenance_type,
           priority,
-          status,
+          maintenance_for,
+          request_date,
           scheduled_date,
-          due_date,
-          created_at,
-          equipment:equipment_id (
-            id,
-            name,
-            equipment_type,
-            serial_number
-          ),
-          assigned_to_profile:assigned_to (
-            id,
-            full_name,
-            email,
-            role
-          ),
-          created_by_profile:created_by (
-            id,
-            full_name,
-            email
-          )
+          team,
+          technician,
+          company,
+          current_status,
+          created_by,
+          created_at
         `)
         .order('created_at', { ascending: false })
         .limit(10)
@@ -60,20 +49,7 @@ export default function DashboardPage() {
       setMaintenanceReports(data || [])
     } catch (error) {
       console.error('Error fetching maintenance reports:', error)
-      // Set sample data if there's an error (for demo purposes)
-      setMaintenanceReports([
-        {
-          id: '1',
-          title: 'Test activity',
-          task_type: 'inspection',
-          priority: 'medium',
-          status: 'pending',
-          equipment: { name: 'Computer', equipment_type: 'Machine' },
-          assigned_to_profile: { full_name: 'Mitchell Allen', email: 'mitchell@company.com' },
-          created_by_profile: { full_name: 'Admin User' },
-          created_at: new Date().toISOString()
-        }
-      ])
+      setMaintenanceReports([])
     } finally {
       setLoading(false)
     }
@@ -83,52 +59,47 @@ export default function DashboardPage() {
   const calculateStats = () => {
     // Critical Equipment: high priority tasks
     const criticalCount = maintenanceReports.filter(
-      r => r.priority === 'high'
+      r => r.priority === 'High'
     ).length
 
-    // Pending tasks: tasks with pending status
+    // Pending tasks: tasks with New or In Progress status
     const pendingCount = maintenanceReports.filter(
-      r => r.status === 'pending'
+      r => r.current_status === 'New' || r.current_status === 'In Progress'
     ).length
 
-    // Overdue tasks: pending tasks past due date
-    const now = new Date()
-    const overdueCount = maintenanceReports.filter(r => {
-      if (r.status === 'pending' && r.due_date) {
-        const dueDate = new Date(r.due_date)
-        return dueDate < now
-      }
-      return false
-    }).length
+    // Calculate technician load percentage
+    const assignedCount = maintenanceReports.filter(r => r.technician).length
+    const technicianLoad = maintenanceReports.length > 0 
+      ? Math.round((assignedCount / maintenanceReports.length) * 100) 
+      : 0
 
-    return { criticalCount, pendingCount, overdueCount }
+    return { criticalCount, pendingCount, technicianLoad }
   }
 
-  const { criticalCount, pendingCount, overdueCount } = calculateStats()
+  const { criticalCount, pendingCount, technicianLoad } = calculateStats()
 
-  // Mockup-based stat cards
+  // Stats based on real data
   const statCards = [
     {
       title: 'Critical Equipment',
-      count: criticalCount || 5,
-      subtitle: '(Health < 30%)',
+      count: criticalCount,
+      subtitle: '(High Priority)',
       bgColor: 'bg-red-100',
       textColor: 'text-red-700',
       borderColor: 'border-red-300'
     },
     {
       title: 'Technician Load',
-      count: '85%',
-      subtitle: '(Assign Carefully)',
+      count: `${technicianLoad}%`,
+      subtitle: '(Assigned Tasks)',
       bgColor: 'bg-blue-100',
       textColor: 'text-blue-700',
       borderColor: 'border-blue-300'
     },
     {
       title: 'Open Requests',
-      count: pendingCount || 12,
-      subtitle: `${pendingCount || 12} Pending`,
-      secondLine: `${overdueCount || 3} Overdue`,
+      count: pendingCount,
+      subtitle: `${pendingCount} Pending`,
       bgColor: 'bg-green-100',
       textColor: 'text-green-700',
       borderColor: 'border-green-300'
@@ -139,9 +110,10 @@ export default function DashboardPage() {
     if (!searchTerm) return true
     const searchLower = searchTerm.toLowerCase()
     return (
-      report.title?.toLowerCase().includes(searchLower) ||
-      report.equipment?.name?.toLowerCase().includes(searchLower) ||
-      report.assigned_to_profile?.full_name?.toLowerCase().includes(searchLower)
+      report.subject?.toLowerCase().includes(searchLower) ||
+      report.equipment_name?.toLowerCase().includes(searchLower) ||
+      report.technician?.toLowerCase().includes(searchLower) ||
+      report.company?.toLowerCase().includes(searchLower)
     )
   })
 
@@ -150,23 +122,11 @@ export default function DashboardPage() {
   }
 
   const getStatusDisplay = (status) => {
-    const statusMap = {
-      'pending': 'Pending',
-      'in_progress': 'In Progress',
-      'completed': 'Completed',
-      'cancelled': 'Cancelled'
-    }
-    return statusMap[status] || status
+    return status || 'New'
   }
 
   const getTaskTypeDisplay = (taskType) => {
-    const typeMap = {
-      'preventive': 'Preventive',
-      'corrective': 'Corrective',
-      'inspection': 'Inspection',
-      'repair': 'Repair'
-    }
-    return typeMap[taskType] || taskType
+    return taskType || 'N/A'
   }
 
   return (
@@ -205,6 +165,11 @@ export default function DashboardPage() {
                 <p className={`text-sm ${card.textColor} opacity-80`}>
                   {card.subtitle}
                 </p>
+                {card.secondLine && (
+                  <p className={`text-sm ${card.textColor} opacity-80 mt-1`}>
+                    {card.secondLine}
+                  </p>
+                )}
                 {card.secondLine && (
                   <p className={`text-sm ${card.textColor} opacity-80 mt-1`}>
                     {card.secondLine}
@@ -291,44 +256,39 @@ export default function DashboardPage() {
                     </tr>
                   ) : (
                     filteredReports.map((report) => {
-                      // Check if task is overdue
-                      const isOverdue = report.status === 'pending' && 
-                        report.due_date && 
-                        new Date(report.due_date) < new Date()
-                      
                       return (
                         <tr key={report.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-6 py-4 text-sm font-medium text-gray-900">
-                            {report.title || 'Untitled Task'}
+                            {report.subject || 'Untitled'}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-700">
-                            {report.created_by_profile?.full_name || 'N/A'}
+                            {report.maintenance_for || 'N/A'}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-700">
-                            {report.assigned_to_profile?.full_name || 'Unassigned'}
+                            {report.technician || 'Unassigned'}
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-700">
-                            {report.equipment?.equipment_type || getTaskTypeDisplay(report.task_type) || 'N/A'}
+                            {report.category || 'N/A'}
                           </td>
                           <td className="px-6 py-4 text-sm">
                             <span
                               className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                isOverdue
-                                  ? 'bg-red-100 text-red-700'
-                                  : report.status === 'completed'
-                                  ? 'bg-green-100 text-green-700'
-                                  : report.status === 'in_progress'
+                                report.current_status === 'New'
                                   ? 'bg-blue-100 text-blue-700'
-                                  : report.status === 'cancelled'
-                                  ? 'bg-gray-100 text-gray-700'
-                                  : 'bg-yellow-100 text-yellow-700'
+                                  : report.current_status === 'In Progress'
+                                  ? 'bg-yellow-100 text-yellow-700'
+                                  : report.current_status === 'Repaired'
+                                  ? 'bg-green-100 text-green-700'
+                                  : report.current_status === 'Scrap'
+                                  ? 'bg-red-100 text-red-700'
+                                  : 'bg-gray-100 text-gray-700'
                               }`}
                             >
-                              {isOverdue ? 'Overdue' : getStatusDisplay(report.status)}
+                              {getStatusDisplay(report.current_status)}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-700">
-                            {report.equipment?.name || 'Any company'}
+                            {report.company || 'N/A'}
                           </td>
                         </tr>
                       )

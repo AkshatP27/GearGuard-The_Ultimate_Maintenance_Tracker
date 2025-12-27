@@ -85,16 +85,18 @@ export default function EquipmentPage() {
           scheduled_date,
           duration_hours,
           team,
+          team_member_name,
           technician,
           company,
           notes,
           instructions,
+          current_status,
+          current_location,
+          serial_number,
+          warranty_details,
           created_at,
           updated_at,
-          created_by_profile:created_by (
-            full_name,
-            email
-          )
+          created_by
         `)
         .order('created_at', { ascending: false })
 
