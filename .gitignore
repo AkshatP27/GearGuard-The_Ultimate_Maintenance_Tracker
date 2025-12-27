@@ -3,6 +3,25 @@ node_modules/
 .pnp
 .pnp.js
 
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+backend/venv/
+backend/env/
+backend/.venv/
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
 # Testing
 coverage/
 *.log
@@ -11,12 +30,27 @@ coverage/
 build/
 dist/
 
-# Environment variables
+# Environment variables - CRITICAL: Never commit these files!
 .env
 .env.local
+.env.development
 .env.development.local
+.env.test
 .env.test.local
+.env.production
 .env.production.local
+*.env
+!.env.example
+
+# Backend environment
+backend/.env
+backend/.env.local
+backend/.env.production
+
+# Frontend environment
+frontend/.env
+frontend/.env.local
+frontend/.env.production
 
 # Editor directories and files
 .vscode/
@@ -40,6 +74,22 @@ dist-ssr
 .cache/
 .temp/
 *.tsbuildinfo
+
+# API Keys and Secrets (Additional security layer)
+**/secrets.json
+**/credentials.json
+**/*-key.json
+**/*-secret.json
+**/config/secrets.py
+**/config/credentials.py
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Supabase
+.supabase/
 
 # OS
 Thumbs.db
