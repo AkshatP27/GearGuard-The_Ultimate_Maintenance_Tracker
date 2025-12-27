@@ -10,7 +10,7 @@ import TeamsPage from './pages/TeamsPage'
 function App() {
   return (
     <AuthProvider>
-      <Router>
+      <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
           <Route path="/" element={<Navigate to="/auth" replace />} />
           <Route path="/auth" element={<AuthPage />} />
