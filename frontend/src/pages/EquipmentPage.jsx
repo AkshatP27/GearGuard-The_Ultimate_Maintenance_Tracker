@@ -1,107 +1,228 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Navbar from '../components/common/Navbar'
 import Sidebar from '../components/common/Sidebar'
+import { supabase } from '../services/supabase'
+import { useAuth } from '../context/AuthContext'
 
 export default function EquipmentPage() {
-  const [viewMode, setViewMode] = useState('grid') // 'grid' or 'list'
+  const navigate = useNavigate()
+  const { user } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [equipmentList, setEquipmentList] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [showNewModal, setShowNewModal] = useState(false)
+  const [showDetailModal, setShowDetailModal] = useState(false)
+  const [showCategoriesModal, setShowCategoriesModal] = useState(false)
+  const [selectedEquipment, setSelectedEquipment] = useState(null)
+  const [categories, setCategories] = useState([])
+  
+  // Form state for new equipment
+  const [formData, setFormData] = useState({
+    name: '',
+    equipment_type: '',
+    model: '',
+    serial_number: '',
+    manufacturer: '',
+    purchase_date: '',
+    warranty_expiry: '',
+    status: 'operational',
+    location: '',
+    description: '',
+    notes: '',
+    // Additional fields from mockup
+    employee: '',
+    technician: '',
+    scrap_date: '',
+    used_in_location: '',
+    work_center: '',
+    maintenance_team: '',
+    assigned_date: ''
+  })
 
-  const equipment = [
-    { 
-      id: 1, 
-      name: 'Hydraulic Press', 
-      type: 'Machinery',
-      serialNumber: 'HP-2024-001', 
-      status: 'operational', 
-      location: 'Factory Floor A',
-      lastMaintenance: '2024-12-15',
-      nextMaintenance: '2025-01-15'
-    },
-    { 
-      id: 2, 
-      name: 'CNC Machine', 
-      type: 'Machinery',
-      serialNumber: 'CNC-2024-002', 
-      status: 'under_maintenance', 
-      location: 'Workshop B',
-      lastMaintenance: '2024-12-20',
-      nextMaintenance: '2025-01-20'
-    },
-    { 
-      id: 3, 
-      name: 'Forklift #1', 
-      type: 'Vehicle',
-      serialNumber: 'FK-2024-003', 
-      status: 'operational', 
-      location: 'Warehouse',
-      lastMaintenance: '2024-11-30',
-      nextMaintenance: '2024-12-30'
-    },
-    { 
-      id: 4, 
-      name: 'Lathe Machine', 
-      type: 'Machinery',
-      serialNumber: 'LM-2024-004', 
-      status: 'operational', 
-      location: 'Workshop A',
-      lastMaintenance: '2024-12-10',
-      nextMaintenance: '2025-01-10'
-    },
-    { 
-      id: 5, 
-      name: 'Welding Robot', 
-      type: 'Machinery',
-      serialNumber: 'WR-2024-005', 
-      status: 'out_of_service', 
-      location: 'Factory Floor B',
-      lastMaintenance: '2024-12-01',
-      nextMaintenance: 'TBD'
-    },
-    { 
-      id: 6, 
-      name: 'Conveyor Belt System', 
-      type: 'Machinery',
-      serialNumber: 'CB-2024-006', 
-      status: 'operational', 
-      location: 'Assembly Line',
-      lastMaintenance: '2024-12-18',
-      nextMaintenance: '2025-01-18'
-    },
-  ]
+  useEffect(() => {
+    fetchEquipment()
+    fetchCategories()
+  }, [])
+
+  const fetchEquipment = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('equipment')
+        .select(`
+          id,
+          name,
+          equipment_type,
+          model,
+          serial_number,
+          manufacturer,
+          purchase_date,
+          warranty_expiry,
+          status,
+          location,
+          description,
+          notes,
+          created_at,
+          updated_at,
+          created_by_profile:created_by (
+            full_name,
+            email
+          )
+        `)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setEquipmentList(data || [])
+    } catch (error) {
+      console.error('Error fetching equipment:', error)
+      // Set sample data if error
+      setEquipmentList([
+        { 
+          id: '1', 
+          name: 'Samsung Monitor 15"', 
+          equipment_type: 'Monitors',
+          serial_number: 'MT/125/22778937', 
+          status: 'operational', 
+          location: 'Admin',
+          created_by_profile: { full_name: 'Tejas Modi' },
+          manufacturer: 'Samsung',
+          created_at: new Date().toISOString()
+        },
+        { 
+          id: '2', 
+          name: 'Acer Laptop', 
+          equipment_type: 'Computers',
+          serial_number: 'MT/122/11112222', 
+          status: 'operational', 
+          location: 'Technician',
+          created_by_profile: { full_name: 'Bhavansh P' },
+          manufacturer: 'Acer',
+          created_at: new Date().toISOString()
+        }
+      ])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchCategories = async () => {
+    try {
+      // Get unique equipment types
+      const { data, error } = await supabase
+        .from('equipment')
+        .select('equipment_type')
+      
+      if (error) throw error
+      
+      const uniqueTypes = [...new Set(data.map(item => item.equipment_type))]
+      const categoriesData = uniqueTypes.map(type => ({
+        name: type,
+        responsible: 'OdooBot',
+        company: 'My Company (San Francisco)'
+      }))
+      
+      setCategories(categoriesData)
+    } catch (error) {
+      console.error('Error fetching categories:', error)
+      setCategories([
+        { name: 'Computers', responsible: 'OdooBot', company: 'My Company (San Francisco)' },
+        { name: 'Software', responsible: 'OdooBot', company: 'My Company (San Francisco)' },
+        { name: 'Monitors', responsible: 'Mitchell Admin', company: 'My Company (San Francisco)' }
+      ])
+    }
+  }
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+
+    try {
+      const { data, error } = await supabase
+        .from('equipment')
+        .insert([{
+          name: formData.name,
+          equipment_type: formData.equipment_type,
+          model: formData.model,
+          serial_number: formData.serial_number,
+          manufacturer: formData.manufacturer,
+          purchase_date: formData.purchase_date || null,
+          warranty_expiry: formData.warranty_expiry || null,
+          status: formData.status,
+          location: formData.location,
+          description: formData.description,
+          notes: formData.notes,
+          created_by: user?.id
+        }])
+        .select()
+
+      if (error) throw error
+
+      alert('Equipment created successfully!')
+      setShowNewModal(false)
+      setFormData({
+        name: '', equipment_type: '', model: '', serial_number: '',
+        manufacturer: '', purchase_date: '', warranty_expiry: '',
+        status: 'operational', location: '', description: '', notes: '',
+        employee: '', technician: '', scrap_date: '', used_in_location: '',
+        work_center: '', maintenance_team: '', assigned_date: ''
+      })
+      fetchEquipment()
+    } catch (error) {
+      console.error('Error creating equipment:', error)
+      alert('Error creating equipment: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleEquipmentClick = (equipment) => {
+    setSelectedEquipment(equipment)
+    setShowDetailModal(true)
+  }
+
+  const handleDelete = async (id) => {
+    if (!confirm('Are you sure you want to delete this equipment?')) return
+
+    try {
+      const { error } = await supabase
+        .from('equipment')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+      alert('Equipment deleted successfully!')
+      fetchEquipment()
+      setShowDetailModal(false)
+    } catch (error) {
+      console.error('Error deleting equipment:', error)
+      alert('Error deleting equipment: ' + error.message)
+    }
+  }
+
+  const filteredEquipment = equipmentList.filter(item => {
+    if (!searchTerm) return true
+    const search = searchTerm.toLowerCase()
+    return (
+      item.name?.toLowerCase().includes(search) ||
+      item.equipment_type?.toLowerCase().includes(search) ||
+      item.serial_number?.toLowerCase().includes(search) ||
+      item.location?.toLowerCase().includes(search)
+    )
+  })
 
   const getStatusBadge = (status) => {
     const statusConfig = {
-      operational: { label: 'Operational', class: 'bg-green-100 text-green-800 border-green-200' },
-      under_maintenance: { label: 'Maintenance', class: 'bg-yellow-100 text-yellow-800 border-yellow-200' },
-      out_of_service: { label: 'Out of Service', class: 'bg-red-100 text-red-800 border-red-200' },
-      retired: { label: 'Retired', class: 'bg-gray-100 text-gray-800 border-gray-200' },
+      operational: { label: 'Operational', class: 'bg-green-100 text-green-800' },
+      under_maintenance: { label: 'Maintenance', class: 'bg-yellow-100 text-yellow-800' },
+      out_of_service: { label: 'Out of Service', class: 'bg-red-100 text-red-800' },
+      retired: { label: 'Retired', class: 'bg-gray-100 text-gray-800' }
     }
     return statusConfig[status] || statusConfig.operational
-  }
-
-  const getTypeIcon = (type) => {
-    switch(type) {
-      case 'Machinery':
-        return (
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        )
-      case 'Vehicle':
-        return (
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-          </svg>
-        )
-      default:
-        return (
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
-          </svg>
-        )
-    }
   }
 
   return (
@@ -110,179 +231,415 @@ export default function EquipmentPage() {
       <div className="flex">
         <Sidebar />
         <main className="flex-1 p-8">
-          {/* Page Header */}
-          <div className="flex items-center justify-between mb-8">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">Equipment Management</h1>
-              <p className="text-gray-600">Manage and monitor all equipment</p>
-            </div>
-            <button className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl">
-              + Add Equipment
-            </button>
-          </div>
-
-          {/* Filters and Search */}
-          <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-100">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {/* Search */}
-              <div className="md:col-span-2">
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Search equipment..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <svg className="w-5 h-5 text-gray-400 absolute left-3 top-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                </div>
-              </div>
-
-              {/* Status Filter */}
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          {/* Header */}
+          <div className="mb-6 flex items-center justify-between">
+            <h1 className="text-3xl font-bold text-gray-900">Equipment</h1>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCategoriesModal(true)}
+                className="px-4 py-2 bg-white border-2 border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50"
               >
-                <option value="all">All Status</option>
-                <option value="operational">Operational</option>
-                <option value="under_maintenance">Under Maintenance</option>
-                <option value="out_of_service">Out of Service</option>
-              </select>
-
-              {/* View Mode Toggle */}
-              <div className="flex items-center space-x-2 bg-gray-100 rounded-lg p-1">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`flex-1 py-2 px-3 rounded-md transition ${
-                    viewMode === 'grid' ? 'bg-white shadow-sm' : 'text-gray-600'
-                  }`}
-                >
-                  <svg className="w-5 h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`flex-1 py-2 px-3 rounded-md transition ${
-                    viewMode === 'list' ? 'bg-white shadow-sm' : 'text-gray-600'
-                  }`}
-                >
-                  <svg className="w-5 h-5 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                  </svg>
-                </button>
-              </div>
+                Categories
+              </button>
+              <button
+                onClick={() => setShowNewModal(true)}
+                className="px-6 py-2 bg-white border-2 border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                New
+              </button>
             </div>
           </div>
 
-          {/* Equipment Grid/List */}
-          {viewMode === 'grid' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {equipment.map((item) => {
-                const statusBadge = getStatusBadge(item.status)
-                return (
-                  <div key={item.id} className="bg-white rounded-xl shadow-sm hover:shadow-md transition-all p-6 border border-gray-100">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex items-center space-x-3">
-                        <div className="p-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg text-blue-600">
-                          {getTypeIcon(item.type)}
-                        </div>
-                        <div>
-                          <h3 className="font-semibold text-gray-900">{item.name}</h3>
-                          <p className="text-sm text-gray-500">{item.type}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Serial Number:</span>
-                        <span className="font-medium text-gray-900">{item.serialNumber}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Location:</span>
-                        <span className="font-medium text-gray-900">{item.location}</span>
-                      </div>
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Status:</span>
-                        <span className={`px-2 py-1 text-xs font-semibold rounded border ${statusBadge.class}`}>
-                          {statusBadge.label}
-                        </span>
-                      </div>
-                      <div className="pt-3 border-t border-gray-100">
-                        <div className="flex justify-between text-xs text-gray-500 mb-1">
-                          <span>Next Maintenance:</span>
-                          <span className="font-medium">{item.nextMaintenance}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex space-x-2">
-                      <button className="flex-1 py-2 px-3 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition font-medium">
-                        View Details
-                      </button>
-                      <button className="py-2 px-3 text-sm bg-gray-50 text-gray-600 rounded-lg hover:bg-gray-100 transition">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
+          {/* Search */}
+          <div className="mb-6">
+            <div className="relative">
+              <svg
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
             </div>
-          ) : (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+          </div>
+
+          {/* Equipment Table */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Equipment</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Serial Number</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Location</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Next Maintenance</th>
-                    <th className="px-6 py-4 text-right text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Equipment Name</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Employee</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Department</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Serial Number</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Technician</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Equipment Category</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Company</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {equipment.map((item) => {
-                    const statusBadge = getStatusBadge(item.status)
-                    return (
-                      <tr key={item.id} className="hover:bg-gray-50 transition">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center space-x-3">
-                            <div className="p-2 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg text-blue-600">
-                              {getTypeIcon(item.type)}
-                            </div>
-                            <div>
-                              <div className="font-semibold text-gray-900">{item.name}</div>
-                              <div className="text-sm text-gray-500">{item.type}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900">{item.serialNumber}</td>
-                        <td className="px-6 py-4 text-sm text-gray-900">{item.location}</td>
-                        <td className="px-6 py-4">
-                          <span className={`px-3 py-1 text-xs font-semibold rounded-full border ${statusBadge.class}`}>
-                            {statusBadge.label}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-900">{item.nextMaintenance}</td>
-                        <td className="px-6 py-4 text-right text-sm">
-                          <button className="text-blue-600 hover:text-blue-700 font-medium">View</button>
-                        </td>
+                <tbody className="divide-y divide-gray-200">
+                  {loading ? (
+                    <tr>
+                      <td colSpan="7" className="px-6 py-8 text-center text-gray-500">Loading equipment...</td>
+                    </tr>
+                  ) : filteredEquipment.length === 0 ? (
+                    <tr>
+                      <td colSpan="7" className="px-6 py-8 text-center text-gray-500">No equipment found.</td>
+                    </tr>
+                  ) : (
+                    filteredEquipment.map((item) => (
+                      <tr
+                        key={item.id}
+                        onClick={() => handleEquipmentClick(item)}
+                        className="hover:bg-gray-50 cursor-pointer transition-colors"
+                      >
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.name}</td>
+                        <td className="px-6 py-4 text-sm text-gray-700">{item.created_by_profile?.full_name || 'N/A'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-700">{item.location || 'N/A'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-700">{item.serial_number || 'N/A'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-700">{'Mitchell Admin'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-700">{item.equipment_type || 'N/A'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-700">My Company (San Francisco)</td>
                       </tr>
-                    )
-                  })}
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
-          )}
+          </div>
         </main>
       </div>
+
+      {/* New Equipment Modal */}
+      {showNewModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full p-8 my-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">New Equipment</h2>
+              <button
+                onClick={() => setShowNewModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-6">
+              {/* Left Column */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Name?</label>
+                  <input
+                    type="text"
+                    name="name"
+                    required
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    placeholder="Samsung Monitor 15"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Equipment Category?</label>
+                  <input
+                    type="text"
+                    name="equipment_type"
+                    required
+                    value={formData.equipment_type}
+                    onChange={handleInputChange}
+                    placeholder="Monitors"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Company?</label>
+                  <input
+                    type="text"
+                    name="manufacturer"
+                    value={formData.manufacturer}
+                    onChange={handleInputChange}
+                    placeholder="My Company (San Francisco)"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Used By?</label>
+                  <select
+                    name="status"
+                    value={formData.status}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="operational">Employee</option>
+                    <option value="under_maintenance">Maintenance</option>
+                    <option value="out_of_service">Out of Service</option>
+                    <option value="retired">Retired</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Maintenance Team?</label>
+                  <input
+                    type="text"
+                    name="maintenance_team"
+                    value={formData.maintenance_team}
+                    onChange={handleInputChange}
+                    placeholder="Internal Maintenance"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Assigned Date?</label>
+                  <input
+                    type="date"
+                    name="assigned_date"
+                    value={formData.assigned_date}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Right Column */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Technician?</label>
+                  <input
+                    type="text"
+                    name="technician"
+                    value={formData.technician}
+                    onChange={handleInputChange}
+                    placeholder="Abigail Peterson"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Employee?</label>
+                  <input
+                    type="text"
+                    name="employee"
+                    value={formData.employee}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Scrap Date?</label>
+                  <input
+                    type="date"
+                    name="scrap_date"
+                    value={formData.scrap_date}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Used in Location?</label>
+                  <input
+                    type="text"
+                    name="used_in_location"
+                    value={formData.used_in_location}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Work Center?</label>
+                  <input
+                    type="text"
+                    name="work_center"
+                    value={formData.work_center}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Description - Full Width */}
+              <div className="col-span-2">
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+                <textarea
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  rows="3"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Buttons */}
+              <div className="col-span-2 flex justify-end gap-3 mt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowNewModal(false)}
+                  className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {loading ? 'Creating...' : 'Create'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Equipment Detail Modal */}
+      {showDetailModal && selectedEquipment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full p-8 my-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Equipment Details</h2>
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-6 mb-6">
+              <div>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Equipment Name</p>
+                <p className="text-lg text-gray-900">{selectedEquipment.name}</p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Serial Number</p>
+                <p className="text-lg text-gray-900">{selectedEquipment.serial_number || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Category</p>
+                <p className="text-lg text-gray-900">{selectedEquipment.equipment_type || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Status</p>
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusBadge(selectedEquipment.status).class}`}>
+                  {getStatusBadge(selectedEquipment.status).label}
+                </span>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Location</p>
+                <p className="text-lg text-gray-900">{selectedEquipment.location || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Manufacturer</p>
+                <p className="text-lg text-gray-900">{selectedEquipment.manufacturer || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Model</p>
+                <p className="text-lg text-gray-900">{selectedEquipment.model || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Created By</p>
+                <p className="text-lg text-gray-900">{selectedEquipment.created_by_profile?.full_name || 'N/A'}</p>
+              </div>
+            </div>
+
+            {selectedEquipment.description && (
+              <div className="mb-6">
+                <p className="text-sm font-semibold text-gray-500 mb-1">Description</p>
+                <p className="text-gray-900">{selectedEquipment.description}</p>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => handleDelete(selectedEquipment.id)}
+                className="px-6 py-2.5 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700"
+              >
+                Delete
+              </button>
+              <button
+                onClick={() => setShowDetailModal(false)}
+                className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Equipment Categories Modal */}
+      {showCategoriesModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Equipment Categories</h2>
+              <button
+                onClick={() => setShowCategoriesModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <button className="px-4 py-2 bg-white border-2 border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50">
+                New
+              </button>
+            </div>
+
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Name</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Responsible</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Company</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {categories.map((category, index) => (
+                    <tr key={index} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 text-sm font-medium text-gray-900">{category.name}</td>
+                      <td className="px-6 py-4 text-sm text-gray-700">{category.responsible}</td>
+                      <td className="px-6 py-4 text-sm text-gray-700">{category.company}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="flex justify-end mt-6">
+              <button
+                onClick={() => setShowCategoriesModal(false)}
+                className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
