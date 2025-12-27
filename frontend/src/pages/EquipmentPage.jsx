@@ -16,8 +16,11 @@ export default function EquipmentPage() {
   const [showCategoriesModal, setShowCategoriesModal] = useState(false)
   const [selectedEquipment, setSelectedEquipment] = useState(null)
   const [categories, setCategories] = useState([])
+  const [userRole, setUserRole] = useState(null)
+  const [showAcceptModal, setShowAcceptModal] = useState(false)
+  const [selectedRequest, setSelectedRequest] = useState(null)
   
-  // Form state for new maintenance request
+  // Form state for new maintenance request (Admin/Manager only)
   const [formData, setFormData] = useState({
     subject: '',
     maintenance_for: 'Equipment',
@@ -25,20 +28,46 @@ export default function EquipmentPage() {
     category: '',
     request_date: new Date().toISOString().split('T')[0],
     maintenance_type: 'Corrective',
-    team: '',
-    technician: '',
-    scheduled_date: '',
-    duration_hours: 0,
     priority: 'Medium',
     company: '',
     notes: '',
     instructions: ''
   })
 
+  // Form state for technician updates
+  const [technicianFormData, setTechnicianFormData] = useState({
+    team: '',
+    team_member_name: '',
+    technician: '',
+    scheduled_date: '',
+    duration_hours: '',
+    current_status: 'New',
+    current_location: '',
+    serial_number: '',
+    warranty_details: ''
+  })
+
   useEffect(() => {
+    fetchUserRole()
     fetchEquipment()
     fetchCategories()
-  }, [])
+  }, [user])
+
+  const fetchUserRole = async () => {
+    if (!user) return
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+      
+      if (error) throw error
+      setUserRole(data?.role)
+    } catch (error) {
+      console.error('Error fetching user role:', error)
+    }
+  }
 
   const fetchEquipment = async () => {
     try {
@@ -149,14 +178,11 @@ export default function EquipmentPage() {
           category: formData.category,
           request_date: formData.request_date,
           maintenance_type: formData.maintenance_type,
-          team: formData.team || null,
-          technician: formData.technician || null,
-          scheduled_date: formData.scheduled_date || null,
-          duration_hours: parseFloat(formData.duration_hours) || 0,
           priority: formData.priority,
           company: formData.company || null,
           notes: formData.notes || null,
           instructions: formData.instructions || null,
+          current_status: 'New',
           created_by: user?.id
         }])
         .select()
@@ -172,10 +198,6 @@ export default function EquipmentPage() {
         category: '',
         request_date: new Date().toISOString().split('T')[0],
         maintenance_type: 'Corrective',
-        team: '',
-        technician: '',
-        scheduled_date: '',
-        duration_hours: 0,
         priority: 'Medium',
         company: '',
         notes: '',
@@ -185,6 +207,61 @@ export default function EquipmentPage() {
     } catch (error) {
       console.error('Error creating maintenance request:', error)
       alert('Error creating maintenance request: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleAcceptRequest = (request) => {
+    setSelectedRequest(request)
+    setTechnicianFormData({
+      team: request.team || '',
+      team_member_name: request.team_member_name || '',
+      technician: request.technician || '',
+      scheduled_date: request.scheduled_date || '',
+      duration_hours: request.duration_hours || '',
+      current_status: request.current_status || 'New',
+      current_location: request.current_location || '',
+      serial_number: request.serial_number || '',
+      warranty_details: request.warranty_details || ''
+    })
+    setShowAcceptModal(true)
+  }
+
+  const handleTechnicianInputChange = (e) => {
+    const { name, value } = e.target
+    setTechnicianFormData(prev => ({ ...prev, [name]: value }))
+  }
+
+  const handleTechnicianSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+
+    try {
+      const { error } = await supabase
+        .from('equipment')
+        .update({
+          team: technicianFormData.team || null,
+          team_member_name: technicianFormData.team_member_name || null,
+          technician: technicianFormData.technician,
+          scheduled_date: technicianFormData.scheduled_date,
+          duration_hours: technicianFormData.duration_hours || null,
+          current_status: technicianFormData.current_status,
+          current_location: technicianFormData.current_location || null,
+          serial_number: technicianFormData.serial_number || null,
+          warranty_details: technicianFormData.warranty_details || null
+        })
+        .eq('id', selectedRequest.id)
+
+      if (error) throw error
+
+      alert('Request updated successfully!')
+      setShowAcceptModal(false)
+      setSelectedRequest(null)
+      fetchEquipment()
+    } catch (error) {
+      console.error('Error updating request:', error)
+      alert('Failed to update request. Please try again.')
     } finally {
       setLoading(false)
     }
