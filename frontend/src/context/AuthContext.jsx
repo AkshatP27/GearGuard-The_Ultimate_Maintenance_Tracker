@@ -5,25 +5,11 @@ const AuthContext = createContext({})
 
 export const useAuth = () => useContext(AuthContext)
 
-// Demo credentials
-const DEMO_CREDENTIALS = {
-  email: 'demo@gearguard.com',
-  password: 'demo123'
-}
-
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check for demo user in localStorage
-    const demoUser = localStorage.getItem('demoUser')
-    if (demoUser) {
-      setUser(JSON.parse(demoUser))
-      setLoading(false)
-      return
-    }
-
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null)
       setLoading(false)
@@ -31,36 +17,41 @@ export function AuthProvider({ children }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
-      localStorage.removeItem('demoUser')
     })
 
     return () => subscription.unsubscribe()
   }, [])
 
   const signIn = async (email, password) => {
-    // Check for demo login
-    if (email === DEMO_CREDENTIALS.email && password === DEMO_CREDENTIALS.password) {
-      const demoUser = {
-        id: 'demo-user-id',
-        email: DEMO_CREDENTIALS.email,
-        user_metadata: {
-          full_name: 'Demo User',
-          role: 'admin'
-        },
-        isDemoUser: true
-      }
-      setUser(demoUser)
-      localStorage.setItem('demoUser', JSON.stringify(demoUser))
-      return { user: demoUser }
-    }
-
     // Regular Supabase sign in
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) throw error
+    
+    if (error) {
+      // Custom error messages based on error type
+      if (error.message.includes('Invalid login credentials')) {
+        throw new Error('Account not exist')
+      }
+      if (error.message.includes('Email not confirmed')) {
+        throw new Error('Please verify your email address')
+      }
+      throw new Error(error.message)
+    }
+    
     return data
   }
 
   const signUp = async (email, password, metadata = {}) => {
+    // Check if email already exists by attempting to get user
+    const { data: existingUser } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('email', email)
+      .single()
+    
+    if (existingUser) {
+      throw new Error('Email ID should not be a duplicate in database')
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -68,18 +59,18 @@ export function AuthProvider({ children }) {
         data: metadata
       }
     })
-    if (error) throw error
+    
+    if (error) {
+      if (error.message.includes('already registered')) {
+        throw new Error('Email ID should not be a duplicate in database')
+      }
+      throw new Error(error.message)
+    }
+    
     return data
   }
 
   const signOut = async () => {
-    // Check if demo user
-    if (user?.isDemoUser) {
-      localStorage.removeItem('demoUser')
-      setUser(null)
-      return
-    }
-
     const { error } = await supabase.auth.signOut()
     if (error) throw error
   }
