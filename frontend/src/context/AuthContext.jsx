@@ -67,6 +67,26 @@ export function AuthProvider({ children }) {
       throw new Error(error.message)
     }
     
+    // Insert user profile into profiles table
+    if (data.user) {
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .insert([
+          {
+            id: data.user.id,
+            email: email,
+            full_name: metadata.full_name || '',
+            role: metadata.role || 'technician',
+            avatar_url: null
+          }
+        ])
+      
+      if (profileError) {
+        console.error('Error creating profile:', profileError)
+        // Don't throw error here - user is created in auth, profile can be added later
+      }
+    }
+    
     return data
   }
 
