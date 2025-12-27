@@ -17,27 +17,22 @@ export default function EquipmentPage() {
   const [selectedEquipment, setSelectedEquipment] = useState(null)
   const [categories, setCategories] = useState([])
   
-  // Form state for new equipment
+  // Form state for new maintenance request
   const [formData, setFormData] = useState({
-    name: '',
-    equipment_type: '',
-    model: '',
-    serial_number: '',
-    manufacturer: '',
-    purchase_date: '',
-    warranty_expiry: '',
-    status: 'operational',
-    location: '',
-    description: '',
-    notes: '',
-    // Additional fields from mockup
-    employee: '',
+    subject: '',
+    maintenance_for: 'Equipment',
+    equipment_name: '',
+    category: '',
+    request_date: new Date().toISOString().split('T')[0],
+    maintenance_type: 'Corrective',
+    team: '',
     technician: '',
-    scrap_date: '',
-    used_in_location: '',
-    work_center: '',
-    maintenance_team: '',
-    assigned_date: ''
+    scheduled_date: '',
+    duration_hours: 0,
+    priority: 'Medium',
+    company: '',
+    notes: '',
+    instructions: ''
   })
 
   useEffect(() => {
@@ -51,17 +46,20 @@ export default function EquipmentPage() {
         .from('equipment')
         .select(`
           id,
-          name,
-          equipment_type,
-          model,
-          serial_number,
-          manufacturer,
-          purchase_date,
-          warranty_expiry,
-          status,
-          location,
-          description,
+          subject,
+          equipment_name,
+          category,
+          maintenance_type,
+          priority,
+          maintenance_for,
+          request_date,
+          scheduled_date,
+          duration_hours,
+          team,
+          technician,
+          company,
           notes,
+          instructions,
           created_at,
           updated_at,
           created_by_profile:created_by (
@@ -107,16 +105,16 @@ export default function EquipmentPage() {
 
   const fetchCategories = async () => {
     try {
-      // Get unique equipment types
+      // Get unique categories
       const { data, error } = await supabase
         .from('equipment')
-        .select('equipment_type')
+        .select('category')
       
       if (error) throw error
       
-      const uniqueTypes = [...new Set(data.map(item => item.equipment_type))]
-      const categoriesData = uniqueTypes.map(type => ({
-        name: type,
+      const uniqueCategories = [...new Set(data.map(item => item.category).filter(Boolean))]
+      const categoriesData = uniqueCategories.map(category => ({
+        name: category,
         responsible: 'OdooBot',
         company: 'My Company (San Francisco)'
       }))
@@ -145,36 +143,48 @@ export default function EquipmentPage() {
       const { data, error } = await supabase
         .from('equipment')
         .insert([{
-          name: formData.name,
-          equipment_type: formData.equipment_type,
-          model: formData.model,
-          serial_number: formData.serial_number,
-          manufacturer: formData.manufacturer,
-          purchase_date: formData.purchase_date || null,
-          warranty_expiry: formData.warranty_expiry || null,
-          status: formData.status,
-          location: formData.location,
-          description: formData.description,
-          notes: formData.notes,
+          subject: formData.subject,
+          maintenance_for: formData.maintenance_for,
+          equipment_name: formData.equipment_name,
+          category: formData.category,
+          request_date: formData.request_date,
+          maintenance_type: formData.maintenance_type,
+          team: formData.team || null,
+          technician: formData.technician || null,
+          scheduled_date: formData.scheduled_date || null,
+          duration_hours: parseFloat(formData.duration_hours) || 0,
+          priority: formData.priority,
+          company: formData.company || null,
+          notes: formData.notes || null,
+          instructions: formData.instructions || null,
           created_by: user?.id
         }])
         .select()
 
       if (error) throw error
 
-      alert('Equipment created successfully!')
+      alert('Maintenance request created successfully!')
       setShowNewModal(false)
       setFormData({
-        name: '', equipment_type: '', model: '', serial_number: '',
-        manufacturer: '', purchase_date: '', warranty_expiry: '',
-        status: 'operational', location: '', description: '', notes: '',
-        employee: '', technician: '', scrap_date: '', used_in_location: '',
-        work_center: '', maintenance_team: '', assigned_date: ''
+        subject: '',
+        maintenance_for: 'Equipment',
+        equipment_name: '',
+        category: '',
+        request_date: new Date().toISOString().split('T')[0],
+        maintenance_type: 'Corrective',
+        team: '',
+        technician: '',
+        scheduled_date: '',
+        duration_hours: 0,
+        priority: 'Medium',
+        company: '',
+        notes: '',
+        instructions: ''
       })
       fetchEquipment()
     } catch (error) {
-      console.error('Error creating equipment:', error)
-      alert('Error creating equipment: ' + error.message)
+      console.error('Error creating maintenance request:', error)
+      alert('Error creating maintenance request: ' + error.message)
     } finally {
       setLoading(false)
     }
@@ -279,10 +289,10 @@ export default function EquipmentPage() {
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Equipment Name</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Employee</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Department</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Serial Number</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Team</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Subject</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Technician</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Equipment Category</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Category</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Company</th>
                   </tr>
                 </thead>
@@ -302,13 +312,13 @@ export default function EquipmentPage() {
                         onClick={() => handleEquipmentClick(item)}
                         className="hover:bg-gray-50 cursor-pointer transition-colors"
                       >
-                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.name}</td>
+                        <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.equipment_name || 'N/A'}</td>
                         <td className="px-6 py-4 text-sm text-gray-700">{item.created_by_profile?.full_name || 'N/A'}</td>
-                        <td className="px-6 py-4 text-sm text-gray-700">{item.location || 'N/A'}</td>
-                        <td className="px-6 py-4 text-sm text-gray-700">{item.serial_number || 'N/A'}</td>
-                        <td className="px-6 py-4 text-sm text-gray-700">{'Mitchell Admin'}</td>
-                        <td className="px-6 py-4 text-sm text-gray-700">{item.equipment_type || 'N/A'}</td>
-                        <td className="px-6 py-4 text-sm text-gray-700">My Company (San Francisco)</td>
+                        <td className="px-6 py-4 text-sm text-gray-700">{item.team || 'N/A'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-700">{item.subject || 'N/A'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-700">{item.technician || 'N/A'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-700">{item.category || 'N/A'}</td>
+                        <td className="px-6 py-4 text-sm text-gray-700">{item.company || 'N/A'}</td>
                       </tr>
                     ))
                   )}
@@ -319,12 +329,12 @@ export default function EquipmentPage() {
         </main>
       </div>
 
-      {/* New Equipment Modal */}
+      {/* New Maintenance Request Modal */}
       {showNewModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full p-8 my-8">
+          <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full p-8 my-8">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">New Equipment</h2>
+              <h2 className="text-2xl font-bold text-gray-900">New Maintenance Request</h2>
               <button
                 onClick={() => setShowNewModal(false)}
                 className="text-gray-400 hover:text-gray-600"
@@ -335,159 +345,225 @@ export default function EquipmentPage() {
               </button>
             </div>
             
-            <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-6">
-              {/* Left Column */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Name?</label>
-                  <input
-                    type="text"
-                    name="name"
-                    required
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    placeholder="Samsung Monitor 15"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+            <form onSubmit={handleSubmit}>
+              <div className="grid grid-cols-2 gap-6 mb-6">
+                {/* Left Column */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Subject *</label>
+                    <input
+                      type="text"
+                      name="subject"
+                      required
+                      value={formData.subject}
+                      onChange={handleInputChange}
+                      placeholder="Enter maintenance subject"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Maintenance For *</label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="maintenance_for"
+                          value="Equipment"
+                          checked={formData.maintenance_for === 'Equipment'}
+                          onChange={handleInputChange}
+                          className="mr-2"
+                        />
+                        Equipment
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="maintenance_for"
+                          value="Work Centre"
+                          checked={formData.maintenance_for === 'Work Centre'}
+                          onChange={handleInputChange}
+                          className="mr-2"
+                        />
+                        Work Centre
+                      </label>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Equipment Name *</label>
+                    <input
+                      type="text"
+                      name="equipment_name"
+                      required
+                      value={formData.equipment_name}
+                      onChange={handleInputChange}
+                      placeholder="Enter equipment name"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Category *</label>
+                    <input
+                      type="text"
+                      name="category"
+                      required
+                      value={formData.category}
+                      onChange={handleInputChange}
+                      placeholder="Enter category"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Request Date *</label>
+                    <input
+                      type="date"
+                      name="request_date"
+                      required
+                      value={formData.request_date}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Maintenance Type *</label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="maintenance_type"
+                          value="Corrective"
+                          checked={formData.maintenance_type === 'Corrective'}
+                          onChange={handleInputChange}
+                          className="mr-2"
+                        />
+                        Corrective
+                      </label>
+                      <label className="flex items-center">
+                        <input
+                          type="radio"
+                          name="maintenance_type"
+                          value="Preventive"
+                          checked={formData.maintenance_type === 'Preventive'}
+                          onChange={handleInputChange}
+                          className="mr-2"
+                        />
+                        Preventive
+                      </label>
+                    </div>
+                  </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Equipment Category?</label>
-                  <input
-                    type="text"
-                    name="equipment_type"
-                    required
-                    value={formData.equipment_type}
-                    onChange={handleInputChange}
-                    placeholder="Monitors"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+                {/* Right Column */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Team</label>
+                    <input
+                      type="text"
+                      name="team"
+                      value={formData.team}
+                      onChange={handleInputChange}
+                      placeholder="Enter team name"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Company?</label>
-                  <input
-                    type="text"
-                    name="manufacturer"
-                    value={formData.manufacturer}
-                    onChange={handleInputChange}
-                    placeholder="My Company (San Francisco)"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Technician</label>
+                    <input
+                      type="text"
+                      name="technician"
+                      value={formData.technician}
+                      onChange={handleInputChange}
+                      placeholder="Enter technician name"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Used By?</label>
-                  <select
-                    name="status"
-                    value={formData.status}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="operational">Employee</option>
-                    <option value="under_maintenance">Maintenance</option>
-                    <option value="out_of_service">Out of Service</option>
-                    <option value="retired">Retired</option>
-                  </select>
-                </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Scheduled Date</label>
+                    <input
+                      type="datetime-local"
+                      name="scheduled_date"
+                      value={formData.scheduled_date}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Maintenance Team?</label>
-                  <input
-                    type="text"
-                    name="maintenance_team"
-                    value={formData.maintenance_team}
-                    onChange={handleInputChange}
-                    placeholder="Internal Maintenance"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Duration (hours)</label>
+                    <input
+                      type="number"
+                      step="0.5"
+                      name="duration_hours"
+                      value={formData.duration_hours}
+                      onChange={handleInputChange}
+                      placeholder="0"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Assigned Date?</label>
-                  <input
-                    type="date"
-                    name="assigned_date"
-                    value={formData.assigned_date}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Priority</label>
+                    <select
+                      name="priority"
+                      value={formData.priority}
+                      onChange={handleInputChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="Low">Low</option>
+                      <option value="Medium">Medium</option>
+                      <option value="High">High</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Company</label>
+                    <input
+                      type="text"
+                      name="company"
+                      value={formData.company}
+                      onChange={handleInputChange}
+                      placeholder="Enter company name"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Right Column */}
-              <div className="space-y-4">
+              {/* Notes and Instructions - Full Width */}
+              <div className="grid grid-cols-2 gap-6 mb-6">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Technician?</label>
-                  <input
-                    type="text"
-                    name="technician"
-                    value={formData.technician}
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Notes</label>
+                  <textarea
+                    name="notes"
+                    value={formData.notes}
                     onChange={handleInputChange}
-                    placeholder="Abigail Peterson"
+                    rows="4"
+                    placeholder="Additional notes..."
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Employee?</label>
-                  <input
-                    type="text"
-                    name="employee"
-                    value={formData.employee}
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Instructions</label>
+                  <textarea
+                    name="instructions"
+                    value={formData.instructions}
                     onChange={handleInputChange}
+                    rows="4"
+                    placeholder="Maintenance instructions..."
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Scrap Date?</label>
-                  <input
-                    type="date"
-                    name="scrap_date"
-                    value={formData.scrap_date}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Used in Location?</label>
-                  <input
-                    type="text"
-                    name="used_in_location"
-                    value={formData.used_in_location}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Work Center?</label>
-                  <input
-                    type="text"
-                    name="work_center"
-                    value={formData.work_center}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              {/* Description - Full Width */}
-              <div className="col-span-2">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
-                <textarea
-                  name="description"
-                  value={formData.description}
-                  onChange={handleInputChange}
-                  rows="3"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
               </div>
 
               {/* Buttons */}
-              <div className="col-span-2 flex justify-end gap-3 mt-4">
+              <div className="flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => setShowNewModal(false)}
@@ -498,9 +574,9 @@ export default function EquipmentPage() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50"
+                  className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-blue-300"
                 >
-                  {loading ? 'Creating...' : 'Create'}
+                  {loading ? 'Creating...' : 'Create Request'}
                 </button>
               </div>
             </form>
@@ -526,45 +602,80 @@ export default function EquipmentPage() {
 
             <div className="grid grid-cols-2 gap-6 mb-6">
               <div>
-                <p className="text-sm font-semibold text-gray-500 mb-1">Equipment Name</p>
-                <p className="text-lg text-gray-900">{selectedEquipment.name}</p>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Subject</p>
+                <p className="text-lg text-gray-900">{selectedEquipment.subject || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm font-semibold text-gray-500 mb-1">Serial Number</p>
-                <p className="text-lg text-gray-900">{selectedEquipment.serial_number || 'N/A'}</p>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Maintenance For</p>
+                <p className="text-lg text-gray-900">{selectedEquipment.maintenance_for || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Equipment Name</p>
+                <p className="text-lg text-gray-900">{selectedEquipment.equipment_name || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-sm font-semibold text-gray-500 mb-1">Category</p>
-                <p className="text-lg text-gray-900">{selectedEquipment.equipment_type || 'N/A'}</p>
+                <p className="text-lg text-gray-900">{selectedEquipment.category || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm font-semibold text-gray-500 mb-1">Status</p>
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusBadge(selectedEquipment.status).class}`}>
-                  {getStatusBadge(selectedEquipment.status).label}
-                </span>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Request Date</p>
+                <p className="text-lg text-gray-900">
+                  {selectedEquipment.request_date ? new Date(selectedEquipment.request_date).toLocaleDateString() : 'N/A'}
+                </p>
               </div>
               <div>
-                <p className="text-sm font-semibold text-gray-500 mb-1">Location</p>
-                <p className="text-lg text-gray-900">{selectedEquipment.location || 'N/A'}</p>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Maintenance Type</p>
+                <p className="text-lg text-gray-900">{selectedEquipment.maintenance_type || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm font-semibold text-gray-500 mb-1">Manufacturer</p>
-                <p className="text-lg text-gray-900">{selectedEquipment.manufacturer || 'N/A'}</p>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Team</p>
+                <p className="text-lg text-gray-900">{selectedEquipment.team || 'N/A'}</p>
               </div>
               <div>
-                <p className="text-sm font-semibold text-gray-500 mb-1">Model</p>
-                <p className="text-lg text-gray-900">{selectedEquipment.model || 'N/A'}</p>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Technician</p>
+                <p className="text-lg text-gray-900">{selectedEquipment.technician || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Scheduled Date</p>
+                <p className="text-lg text-gray-900">
+                  {selectedEquipment.scheduled_date ? new Date(selectedEquipment.scheduled_date).toLocaleString() : 'N/A'}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Duration (hours)</p>
+                <p className="text-lg text-gray-900">{selectedEquipment.duration_hours || 0}</p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Priority</p>
+                <p className="text-lg text-gray-900">{selectedEquipment.priority || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Company</p>
+                <p className="text-lg text-gray-900">{selectedEquipment.company || 'N/A'}</p>
               </div>
               <div>
                 <p className="text-sm font-semibold text-gray-500 mb-1">Created By</p>
                 <p className="text-lg text-gray-900">{selectedEquipment.created_by_profile?.full_name || 'N/A'}</p>
               </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Created At</p>
+                <p className="text-lg text-gray-900">
+                  {selectedEquipment.created_at ? new Date(selectedEquipment.created_at).toLocaleString() : 'N/A'}
+                </p>
+              </div>
             </div>
 
-            {selectedEquipment.description && (
+            {selectedEquipment.notes && (
+              <div className="mb-4">
+                <p className="text-sm font-semibold text-gray-500 mb-1">Notes</p>
+                <p className="text-gray-900">{selectedEquipment.notes}</p>
+              </div>
+            )}
+
+            {selectedEquipment.instructions && (
               <div className="mb-6">
-                <p className="text-sm font-semibold text-gray-500 mb-1">Description</p>
-                <p className="text-gray-900">{selectedEquipment.description}</p>
+                <p className="text-sm font-semibold text-gray-500 mb-1">Instructions</p>
+                <p className="text-gray-900">{selectedEquipment.instructions}</p>
               </div>
             )}
 
