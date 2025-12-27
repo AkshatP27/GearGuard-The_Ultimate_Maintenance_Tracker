@@ -15,8 +15,9 @@ export default function MaintenancePage() {
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [selectedMaintenance, setSelectedMaintenance] = useState(null)
   const [statusFilter, setStatusFilter] = useState('all')
+  const [userRole, setUserRole] = useState(null)
   
-  // Form state for new maintenance request
+  // Form state for new maintenance request (Admin/Manager only)
   const [formData, setFormData] = useState({
     subject: '',
     maintenance_for: 'Equipment',
@@ -24,19 +25,48 @@ export default function MaintenancePage() {
     category: '',
     request_date: new Date().toISOString().split('T')[0],
     maintenance_type: 'Corrective',
-    team: '',
-    technician: '',
-    scheduled_date: '',
-    duration_hours: 0,
     priority: 'Medium',
     company: '',
     notes: '',
     instructions: ''
   })
 
+  // Form state for technician acceptance/update
+  const [technicianFormData, setTechnicianFormData] = useState({
+    team: '',
+    team_member_name: '',
+    technician: '',
+    scheduled_date: '',
+    duration_hours: '',
+    current_status: 'New',
+    current_location: '',
+    serial_number: '',
+    warranty_details: ''
+  })
+
+  const [showAcceptModal, setShowAcceptModal] = useState(false)
+  const [selectedRequest, setSelectedRequest] = useState(null)
+
   useEffect(() => {
+    fetchUserRole()
     fetchMaintenance()
-  }, [])
+  }, [user])
+
+  const fetchUserRole = async () => {
+    if (!user) return
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+      
+      if (error) throw error
+      setUserRole(data?.role)
+    } catch (error) {
+      console.error('Error fetching user role:', error)
+    }
+  }
 
   const fetchMaintenance = async () => {
     try {
@@ -54,14 +84,16 @@ export default function MaintenancePage() {
           scheduled_date,
           duration_hours,
           team,
+          team_member_name,
           technician,
           company,
           notes,
           instructions,
-          created_by_profile:created_by (
-            full_name,
-            email
-          ),
+          current_status,
+          current_location,
+          serial_number,
+          warranty_details,
+          created_by,
           created_at
         `)
         .order('created_at', { ascending: false })
@@ -98,15 +130,12 @@ export default function MaintenancePage() {
           category: formData.category,
           request_date: formData.request_date,
           maintenance_type: formData.maintenance_type,
-          team: formData.team || null,
-          technician: formData.technician || null,
-          scheduled_date: formData.scheduled_date || null,
-          duration_hours: parseFloat(formData.duration_hours) || 0,
           priority: formData.priority,
           company: formData.company || null,
           notes: formData.notes || null,
           instructions: formData.instructions || null,
-          created_by: user?.id
+          created_by: user?.id,
+          current_status: 'New'
         }])
         .select()
 
@@ -121,10 +150,6 @@ export default function MaintenancePage() {
         category: '',
         request_date: new Date().toISOString().split('T')[0],
         maintenance_type: 'Corrective',
-        team: '',
-        technician: '',
-        scheduled_date: '',
-        duration_hours: 0,
         priority: 'Medium',
         company: '',
         notes: '',
@@ -165,6 +190,66 @@ export default function MaintenancePage() {
     }
   }
 
+  const handleAcceptRequest = (item) => {
+    setSelectedRequest(item)
+    // Pre-fill with existing data if updating
+    setTechnicianFormData({
+      team: item.team || '',
+      team_member_name: item.team_member_name || '',
+      technician: item.technician || '',
+      scheduled_date: item.scheduled_date || '',
+      duration_hours: item.duration_hours || '',
+      current_status: item.current_status || 'New',
+      current_location: item.current_location || '',
+      serial_number: item.serial_number || '',
+      warranty_details: item.warranty_details || ''
+    })
+    setShowAcceptModal(true)
+  }
+
+  const handleTechnicianInputChange = (e) => {
+    const { name, value } = e.target
+    setTechnicianFormData(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+
+  const handleTechnicianSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true)
+
+    try {
+      const { data, error } = await supabase
+        .from('equipment')
+        .update({
+          team: technicianFormData.team || null,
+          team_member_name: technicianFormData.team_member_name || null,
+          technician: technicianFormData.technician || null,
+          scheduled_date: technicianFormData.scheduled_date || null,
+          duration_hours: technicianFormData.duration_hours || null,
+          current_status: technicianFormData.current_status,
+          current_location: technicianFormData.current_location || null,
+          serial_number: technicianFormData.serial_number || null,
+          warranty_details: technicianFormData.warranty_details || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedRequest.id)
+        .select()
+
+      if (error) throw error
+
+      alert('Request updated successfully!')
+      setShowAcceptModal(false)
+      fetchMaintenance()
+    } catch (error) {
+      console.error('Error updating request:', error)
+      alert('Error updating request: ' + error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const filteredMaintenance = maintenanceList.filter(item => {
     if (!searchTerm) return true
     const search = searchTerm.toLowerCase()
@@ -195,12 +280,14 @@ export default function MaintenancePage() {
           {/* Header */}
           <div className="mb-6 flex items-center justify-between">
             <h1 className="text-3xl font-bold text-gray-900">Maintenance Requests</h1>
-            <button
-              onClick={() => setShowNewModal(true)}
-              className="px-6 py-2 bg-white border-2 border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50"
-            >
-              New Task
-            </button>
+            {userRole !== 'technician' && (
+              <button
+                onClick={() => setShowNewModal(true)}
+                className="px-6 py-2 bg-white border-2 border-gray-300 rounded-lg font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                New Task
+              </button>
+            )}
           </div>
 
           {/* Search */}
@@ -235,19 +322,22 @@ export default function MaintenancePage() {
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Category</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Type</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Priority</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Technician</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Request Date</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Scheduled Date</th>
+                    {userRole === 'technician' && (
+                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase">Action</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {loading ? (
                     <tr>
-                      <td colSpan="8" className="px-6 py-8 text-center text-gray-500">Loading maintenance requests...</td>
+                      <td colSpan={userRole === 'technician' ? "9" : "8"} className="px-6 py-8 text-center text-gray-500">Loading maintenance requests...</td>
                     </tr>
                   ) : filteredMaintenance.length === 0 ? (
                     <tr>
-                      <td colSpan="8" className="px-6 py-8 text-center text-gray-500">No maintenance requests found.</td>
+                      <td colSpan={userRole === 'technician' ? "9" : "8"} className="px-6 py-8 text-center text-gray-500">No maintenance requests found.</td>
                     </tr>
                   ) : (
                     filteredMaintenance.map((item) => {
@@ -255,25 +345,81 @@ export default function MaintenancePage() {
                       return (
                         <tr
                           key={item.id}
-                          onClick={() => handleRequestClick(item)}
-                          className="hover:bg-gray-50 cursor-pointer transition-colors"
+                          className="hover:bg-gray-50 transition-colors"
                         >
-                          <td className="px-6 py-4 text-sm font-medium text-gray-900">{item.subject}</td>
-                          <td className="px-6 py-4 text-sm text-gray-700">{item.equipment_name || '-'}</td>
-                          <td className="px-6 py-4 text-sm text-gray-700">{item.category || '-'}</td>
-                          <td className="px-6 py-4 text-sm text-gray-700">{item.maintenance_type}</td>
-                          <td className="px-6 py-4">
+                          <td 
+                            className="px-6 py-4 text-sm font-medium text-gray-900 cursor-pointer"
+                            onClick={() => handleRequestClick(item)}
+                          >
+                            {item.subject}
+                          </td>
+                          <td 
+                            className="px-6 py-4 text-sm text-gray-700 cursor-pointer"
+                            onClick={() => handleRequestClick(item)}
+                          >
+                            {item.equipment_name || '-'}
+                          </td>
+                          <td 
+                            className="px-6 py-4 text-sm text-gray-700 cursor-pointer"
+                            onClick={() => handleRequestClick(item)}
+                          >
+                            {item.category || '-'}
+                          </td>
+                          <td 
+                            className="px-6 py-4 text-sm text-gray-700 cursor-pointer"
+                            onClick={() => handleRequestClick(item)}
+                          >
+                            {item.maintenance_type}
+                          </td>
+                          <td 
+                            className="px-6 py-4 cursor-pointer"
+                            onClick={() => handleRequestClick(item)}
+                          >
                             <span className={`px-3 py-1 text-xs font-semibold rounded-full ${priorityBadge.class}`}>
                               {priorityBadge.label}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-700">{item.technician || '-'}</td>
-                          <td className="px-6 py-4 text-sm text-gray-700">
+                          <td 
+                            className="px-6 py-4 text-sm text-gray-700 cursor-pointer"
+                            onClick={() => handleRequestClick(item)}
+                          >
+                            <span className={`px-2 py-1 text-xs font-semibold rounded ${
+                              item.current_status === 'New' ? 'bg-blue-100 text-blue-800' :
+                              item.current_status === 'In Progress' ? 'bg-yellow-100 text-yellow-800' :
+                              item.current_status === 'Repaired' ? 'bg-green-100 text-green-800' :
+                              item.current_status === 'Scrap' ? 'bg-red-100 text-red-800' :
+                              'bg-gray-100 text-gray-800'
+                            }`}>
+                              {item.current_status || 'New'}
+                            </span>
+                          </td>
+                          <td 
+                            className="px-6 py-4 text-sm text-gray-700 cursor-pointer"
+                            onClick={() => handleRequestClick(item)}
+                          >
+                            {item.technician || '-'}
+                          </td>
+                          <td 
+                            className="px-6 py-4 text-sm text-gray-700 cursor-pointer"
+                            onClick={() => handleRequestClick(item)}
+                          >
                             {item.request_date ? new Date(item.request_date).toLocaleDateString() : '-'}
                           </td>
-                          <td className="px-6 py-4 text-sm text-gray-700">
-                            {item.scheduled_date ? new Date(item.scheduled_date).toLocaleString() : '-'}
-                          </td>
+                          {userRole === 'technician' && (
+                            <td className="px-6 py-4">
+                              {(!item.technician || item.current_status === 'New') && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleAcceptRequest(item)
+                                  }}
+                                  className="px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded hover:bg-blue-700"
+                                >
+                                  Accept
+                                </button>
+                              )}
+                            </td>
+                          )}
                         </tr>
                       )
                     })
@@ -416,57 +562,10 @@ export default function MaintenancePage() {
                 {/* Right Column */}
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Team</label>
-                    <input
-                      type="text"
-                      name="team"
-                      value={formData.team}
-                      onChange={handleInputChange}
-                      placeholder="Enter team name"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Technician</label>
-                    <input
-                      type="text"
-                      name="technician"
-                      value={formData.technician}
-                      onChange={handleInputChange}
-                      placeholder="Enter technician name"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Scheduled Date</label>
-                    <input
-                      type="datetime-local"
-                      name="scheduled_date"
-                      value={formData.scheduled_date}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Duration (hours)</label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      name="duration_hours"
-                      value={formData.duration_hours}
-                      onChange={handleInputChange}
-                      placeholder="0"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">Priority</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Priority *</label>
                     <select
                       name="priority"
+                      required
                       value={formData.priority}
                       onChange={handleInputChange}
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -499,7 +598,7 @@ export default function MaintenancePage() {
                     name="notes"
                     value={formData.notes}
                     onChange={handleInputChange}
-                    rows="4"
+                    rows="6"
                     placeholder="Additional notes..."
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
@@ -511,7 +610,7 @@ export default function MaintenancePage() {
                     name="instructions"
                     value={formData.instructions}
                     onChange={handleInputChange}
-                    rows="4"
+                    rows="6"
                     placeholder="Maintenance instructions..."
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
@@ -556,76 +655,120 @@ export default function MaintenancePage() {
               </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-6 mb-6">
-              <div>
-                <p className="text-sm font-semibold text-gray-500">Subject</p>
-                <p className="text-base text-gray-900 mt-1">{selectedMaintenance.subject}</p>
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Request Details</h3>
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <p className="text-sm font-semibold text-gray-500">Subject</p>
+                  <p className="text-base text-gray-900 mt-1">{selectedMaintenance.subject}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-500">Maintenance For</p>
+                  <p className="text-base text-gray-900 mt-1">{selectedMaintenance.maintenance_for}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-500">Equipment Name</p>
+                  <p className="text-base text-gray-900 mt-1">{selectedMaintenance.equipment_name}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-500">Category</p>
+                  <p className="text-base text-gray-900 mt-1">{selectedMaintenance.category}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-500">Maintenance Type</p>
+                  <p className="text-base text-gray-900 mt-1">{selectedMaintenance.maintenance_type}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-500">Priority</p>
+                  <p className="text-base text-gray-900 mt-1">{selectedMaintenance.priority}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-500">Company</p>
+                  <p className="text-base text-gray-900 mt-1">{selectedMaintenance.company || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-500">Request Date</p>
+                  <p className="text-base text-gray-900 mt-1">
+                    {selectedMaintenance.request_date ? new Date(selectedMaintenance.request_date).toLocaleDateString() : '-'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-500">Created By</p>
+                  <p className="text-base text-gray-900 mt-1">{selectedMaintenance.created_by_profile?.full_name || '-'}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-500">Maintenance For</p>
-                <p className="text-base text-gray-900 mt-1">{selectedMaintenance.maintenance_for}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-500">Equipment Name</p>
-                <p className="text-base text-gray-900 mt-1">{selectedMaintenance.equipment_name}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-500">Category</p>
-                <p className="text-base text-gray-900 mt-1">{selectedMaintenance.category}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-500">Maintenance Type</p>
-                <p className="text-base text-gray-900 mt-1">{selectedMaintenance.maintenance_type}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-500">Priority</p>
-                <p className="text-base text-gray-900 mt-1">{selectedMaintenance.priority}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-500">Team</p>
-                <p className="text-base text-gray-900 mt-1">{selectedMaintenance.team || '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-500">Technician</p>
-                <p className="text-base text-gray-900 mt-1">{selectedMaintenance.technician || '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-500">Company</p>
-                <p className="text-base text-gray-900 mt-1">{selectedMaintenance.company || '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-500">Request Date</p>
-                <p className="text-base text-gray-900 mt-1">
-                  {selectedMaintenance.request_date ? new Date(selectedMaintenance.request_date).toLocaleDateString() : '-'}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-500">Scheduled Date</p>
-                <p className="text-base text-gray-900 mt-1">
-                  {selectedMaintenance.scheduled_date ? new Date(selectedMaintenance.scheduled_date).toLocaleString() : '-'}
-                </p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-500">Duration (hours)</p>
-                <p className="text-base text-gray-900 mt-1">{selectedMaintenance.duration_hours || 0}</p>
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-gray-500">Created By</p>
-                <p className="text-base text-gray-900 mt-1">{selectedMaintenance.created_by_profile?.full_name || '-'}</p>
-              </div>
+
+              {selectedMaintenance.notes && (
+                <div className="mt-4">
+                  <p className="text-sm font-semibold text-gray-500">Notes</p>
+                  <p className="text-base text-gray-900 mt-1">{selectedMaintenance.notes}</p>
+                </div>
+              )}
+
+              {selectedMaintenance.instructions && (
+                <div className="mt-4">
+                  <p className="text-sm font-semibold text-gray-500">Instructions</p>
+                  <p className="text-base text-gray-900 mt-1">{selectedMaintenance.instructions}</p>
+                </div>
+              )}
             </div>
 
-            {selectedMaintenance.notes && (
-              <div className="mb-4">
-                <p className="text-sm font-semibold text-gray-500">Notes</p>
-                <p className="text-base text-gray-900 mt-1">{selectedMaintenance.notes}</p>
-              </div>
-            )}
-
-            {selectedMaintenance.instructions && (
-              <div className="mb-6">
-                <p className="text-sm font-semibold text-gray-500">Instructions</p>
-                <p className="text-base text-gray-900 mt-1">{selectedMaintenance.instructions}</p>
+            {/* Technician Details Section */}
+            {(selectedMaintenance.technician || selectedMaintenance.team || selectedMaintenance.current_status !== 'New') && (
+              <div className="mb-6 pt-6 border-t border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Technician Details</h3>
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <p className="text-sm font-semibold text-gray-500">Status</p>
+                    <p className="text-base text-gray-900 mt-1">
+                      <span className={`px-2 py-1 text-xs font-semibold rounded ${
+                        selectedMaintenance.current_status === 'New' ? 'bg-blue-100 text-blue-800' :
+                        selectedMaintenance.current_status === 'In Progress' ? 'bg-yellow-100 text-yellow-800' :
+                        selectedMaintenance.current_status === 'Repaired' ? 'bg-green-100 text-green-800' :
+                        selectedMaintenance.current_status === 'Scrap' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {selectedMaintenance.current_status || 'New'}
+                      </span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-500">Team</p>
+                    <p className="text-base text-gray-900 mt-1">{selectedMaintenance.team || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-500">Team Member</p>
+                    <p className="text-base text-gray-900 mt-1">{selectedMaintenance.team_member_name || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-500">Technician</p>
+                    <p className="text-base text-gray-900 mt-1">{selectedMaintenance.technician || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-500">Scheduled Date</p>
+                    <p className="text-base text-gray-900 mt-1">
+                      {selectedMaintenance.scheduled_date ? new Date(selectedMaintenance.scheduled_date).toLocaleString() : '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-500">Duration (hours)</p>
+                    <p className="text-base text-gray-900 mt-1">{selectedMaintenance.duration_hours || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-500">Current Location</p>
+                    <p className="text-base text-gray-900 mt-1">{selectedMaintenance.current_location || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-500">Serial Number</p>
+                    <p className="text-base text-gray-900 mt-1">{selectedMaintenance.serial_number || '-'}</p>
+                  </div>
+                  {selectedMaintenance.warranty_details && (
+                    <div className="col-span-2">
+                      <p className="text-sm font-semibold text-gray-500">Warranty Details</p>
+                      <p className="text-base text-gray-900 mt-1">{selectedMaintenance.warranty_details}</p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
@@ -643,6 +786,166 @@ export default function MaintenancePage() {
                 Close
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Technician Accept/Update Modal */}
+      {showAcceptModal && selectedRequest && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl max-w-5xl w-full p-8 my-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">Accept & Update Maintenance Request</h2>
+              <button
+                onClick={() => setShowAcceptModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <form onSubmit={handleTechnicianSubmit}>
+              <div className="grid grid-cols-2 gap-6 mb-6">
+                {/* Left Column */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Team</label>
+                    <input
+                      type="text"
+                      name="team"
+                      value={technicianFormData.team}
+                      onChange={handleTechnicianInputChange}
+                      placeholder="Enter team name"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Team Member Name</label>
+                    <input
+                      type="text"
+                      name="team_member_name"
+                      value={technicianFormData.team_member_name}
+                      onChange={handleTechnicianInputChange}
+                      placeholder="Enter team member name"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Technician Name *</label>
+                    <input
+                      type="text"
+                      name="technician"
+                      required
+                      value={technicianFormData.technician}
+                      onChange={handleTechnicianInputChange}
+                      placeholder="Enter technician name"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Scheduled Date *</label>
+                    <input
+                      type="datetime-local"
+                      name="scheduled_date"
+                      required
+                      value={technicianFormData.scheduled_date}
+                      onChange={handleTechnicianInputChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Duration (hours)</label>
+                    <input
+                      type="text"
+                      name="duration_hours"
+                      value={technicianFormData.duration_hours}
+                      onChange={handleTechnicianInputChange}
+                      placeholder="e.g., 2.5 hours"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Right Column */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Status *</label>
+                    <select
+                      name="current_status"
+                      required
+                      value={technicianFormData.current_status}
+                      onChange={handleTechnicianInputChange}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="New">New</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Repaired">Repaired</option>
+                      <option value="Scrap">Scrap</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Current Location</label>
+                    <input
+                      type="text"
+                      name="current_location"
+                      value={technicianFormData.current_location}
+                      onChange={handleTechnicianInputChange}
+                      placeholder="Enter current location"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Serial Number</label>
+                    <input
+                      type="text"
+                      name="serial_number"
+                      value={technicianFormData.serial_number}
+                      onChange={handleTechnicianInputChange}
+                      placeholder="Enter serial number"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">Warranty Details</label>
+                    <textarea
+                      name="warranty_details"
+                      value={technicianFormData.warranty_details}
+                      onChange={handleTechnicianInputChange}
+                      rows="4"
+                      placeholder="Enter warranty information..."
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAcceptModal(false)}
+                  className="px-6 py-2.5 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-blue-300"
+                >
+                  {loading ? 'Updating...' : 'Update Request'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
