@@ -2,8 +2,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/auth/ProtectedRoute'
 import AuthPage from './pages/AuthPage'
-import LoginPage from './pages/LoginPage'
-import SignUpPage from './pages/SignUpPage'
 import DashboardPage from './pages/DashboardPage'
 import EquipmentPage from './pages/EquipmentPage'
 import MaintenancePage from './pages/MaintenancePage'
@@ -16,8 +14,8 @@ function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/auth" replace />} />
           <Route path="/auth" element={<AuthPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignUpPage />} />
+          <Route path="/login" element={<Navigate to="/auth" replace />} />
+          <Route path="/signup" element={<Navigate to="/auth" replace />} />
           
           {/* Protected Routes */}
           <Route path="/dashboard" element={
