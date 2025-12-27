@@ -17,14 +17,6 @@ export default function AuthPage() {
   const { signIn, signUp } = useAuth()
   const navigate = useNavigate()
 
-  const handleDemoLogin = () => {
-    setLoginData({
-      email: 'demo@gearguard.com',
-      password: 'demo123'
-    })
-    setActiveTab('login')
-  }
-
   const handleLoginChange = (e) => {
     setLoginData({
       ...loginData,
@@ -45,19 +37,30 @@ export default function AuthPage() {
       return false
     }
 
-    if (signupData.password.length < 6) {
-      setError('Password must be at least 6 characters long')
+    // Email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(signupData.email)) {
+      setError('Please enter a valid email address')
+      return false
+    }
+
+    // Password validation: Must contain small case, large case, special character, and be at least 8 characters
+    if (signupData.password.length < 8) {
+      setError('Password must be at least 8 characters long')
+      return false
+    }
+
+    const hasLowerCase = /[a-z]/.test(signupData.password)
+    const hasUpperCase = /[A-Z]/.test(signupData.password)
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(signupData.password)
+
+    if (!hasLowerCase || !hasUpperCase || !hasSpecialChar) {
+      setError('Password must contain a small case, a large case and a special character and length should be more than 8 characters')
       return false
     }
 
     if (signupData.password !== signupData.confirmPassword) {
-      setError('Passwords do not match')
-      return false
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-    if (!emailRegex.test(signupData.email)) {
-      setError('Please enter a valid email address')
+      setError('Password does not match')
       return false
     }
 
@@ -70,10 +73,17 @@ export default function AuthPage() {
     setLoading(true)
 
     try {
-      await signIn(loginData.email, loginData.password)
-      navigate('/dashboard')
+      const result = await signIn(loginData.email, loginData.password)
+      if (result) {
+        navigate('/dashboard')
+      }
     } catch (err) {
-      setError(err.message || 'Failed to sign in')
+      // Check if error is about account not existing
+      if (err.message.includes('Invalid login credentials') || err.message.includes('Invalid email')) {
+        setError('Account not exist')
+      } else {
+        setError(err.message || 'Failed to sign in')
+      }
     } finally {
       setLoading(false)
     }
@@ -90,11 +100,24 @@ export default function AuthPage() {
     setLoading(true)
 
     try {
-      await signUp(signupData.email, signupData.password, {
+      const result = await signUp(signupData.email, signupData.password, {
         full_name: signupData.fullName,
         role: signupData.role
       })
-      navigate('/dashboard')
+      
+      // Create portal user in database after successful signup
+      if (result.user) {
+        alert('Account created successfully! Only portal user will be created. Please check your email for verification.')
+        // Switch to login tab
+        setActiveTab('login')
+        setSignupData({
+          email: '',
+          password: '',
+          confirmPassword: '',
+          fullName: '',
+          role: 'technician'
+        })
+      }
     } catch (err) {
       setError(err.message || 'Failed to create account')
     } finally {
@@ -109,22 +132,6 @@ export default function AuthPage() {
         <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white p-8 text-center">
           <h1 className="text-4xl font-bold mb-2">⚙️ GearGuard</h1>
           <p className="text-blue-100">The Ultimate Maintenance Tracker</p>
-        </div>
-
-        {/* Demo Banner */}
-        <div className="bg-amber-50 border-b border-amber-200 p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-amber-800 mb-1">🎯 Quick Demo Access</p>
-              <p className="text-xs text-amber-700">demo@gearguard.com / demo123</p>
-            </div>
-            <button
-              onClick={handleDemoLogin}
-              className="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-amber-700 transition-colors whitespace-nowrap ml-2"
-            >
-              Demo Login
-            </button>
-          </div>
         </div>
 
         {/* Tabs */}
@@ -198,6 +205,26 @@ export default function AuthPage() {
                 />
               </div>
 
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="rememberMe"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="rememberMe" className="ml-2 text-sm text-gray-600">
+                    Remember me
+                  </label>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => alert('Forgot Password functionality - Contact admin or use password reset feature')}
+                  className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  Forgot Password?
+                </button>
+              </div>
+
               <button
                 type="submit"
                 disabled={loading}
@@ -268,8 +295,9 @@ export default function AuthPage() {
                   value={signupData.password}
                   onChange={handleSignupChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none transition-shadow"
-                  placeholder="Minimum 6 characters"
+                  placeholder="Min 8 chars with A-Z, a-z, special char"
                 />
+                <p className="text-xs text-gray-500 mt-1">Must be 8+ characters with uppercase, lowercase & special character</p>
               </div>
 
               <div>
